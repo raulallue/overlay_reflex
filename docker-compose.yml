@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  image-overlay:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: <tu-usuario>/image-overlay:latest
+    container_name: image-overlay
+    ports:
+      - "3002:3002"
+      - "8002:8002"
+    volumes:
+      - image-overlay-assets:/app/assets
+    environment:
+      # Default value if not set in .env
+      - API_URL=${API_URL:-http://localhost:8002}
+    restart: always
+    healthcheck:
+      # ACTUALIZADO: Ahora apunta al puerto 8002 interno
+      test: [ "CMD", "curl", "-f", "http://localhost:8002/ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  image-overlay-assets:

@@ -8,6 +8,7 @@ from rxconfig import config
 from .overlay_logic import procesar_imagen_overlay
 
 import pydantic
+from fastapi.staticfiles import StaticFiles
 
 class ProcessedImage(pydantic.BaseModel):
     name: str
@@ -69,6 +70,11 @@ class State(rx.State):
 
         self.processed_images = []
         
+        # Ensure API_URL has a protocol for the browser to reach it correctly
+        api_url = config.api_url
+        if not api_url.startswith(("http://", "https://")):
+            api_url = f"http://{api_url}"
+
         for file in valid_files:
             upload_data = await file.read()
             # Save uploaded file temporarily to process it
@@ -399,6 +405,12 @@ app = rx.App(
     ],
     style={
         "font_family": "Inter, sans-serif",
-    }
+    },
+    admin_dash=None,
+    overlay_component=None,
 )
 app.add_page(index, title="Image Overlay", on_load=State.on_load)
+
+# Mount the assets/processed directory to serve files from the backend API
+# This is necessary for Docker deployment where the frontend is static
+app._api.mount("/processed", StaticFiles(directory=os.path.join("assets", "processed")), name="processed")

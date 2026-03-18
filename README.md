@@ -47,6 +47,42 @@ reflex run
 
 La aplicación estará disponible en `http://localhost:3000`.
 
+## Despliegue con Docker (Producción)
+
+Si deseas ejecutar la aplicación en un contenedor Docker, sigue estos pasos:
+
+1. **Construir y levantar**:
+
+```bash
+docker-compose up --build -d
+```
+
+2. **Acceso**:
+   - Frontend: `http://localhost:3002`
+   - Backend API: `http://localhost:8002`
+
+> [!NOTE]
+> En entornos de producción, asegúrate de actualizar la variable `API_URL` en el archivo `docker-compose.yml` con la IP pública o dominio de tu servidor.
+
+## Construir y Subir a Docker Hub
+
+Sigue estos pasos para empaquetar y subir tu imagen a Docker Hub:
+
+1. **Iniciar sesión**:
+   ```bash
+   docker login
+   ```
+
+2. **Construir la imagen**:
+   ```bash
+   docker build -t <tu-usuario>/image-overlay:latest .
+   ```
+
+3. **Subir la imagen**:
+   ```bash
+   docker push <tu-usuario>/image-overlay:latest
+   ```
+
 ## Estructura del Proyecto
 
 - `overlay_reflex/overlay_reflex.py`: Frontend de Reflex y gestión de estado.
