@@ -1,48 +1,58 @@
-# Drone Overlay Reflex Tool
+# Image Overlay
 
-Una aplicación web moderna construida con **Reflex** para añadir overlays informativos a imágenes capturadas por drones DJI. Extrae metadatos directamente de las etiquetas XMP (Extensible Metadata Platform) incrustadas en las fotos.
+Una aplicación web moderna y profesional construida con **Reflex** para añadir overlays informativos a imágenes (optimizada para drones DJI). Extrae metadatos técnicos y los presenta de forma elegante en un banner integrado.
+
+![Interfaz Principal](file:///Users/raul/.gemini/antigravity/brain/ee598613-069b-4a9f-9a23-c3aff42c3d90/verify_buttons_alignment_1773862197803.png)
 
 ## Características
 
-- 📸 **Carga Multiple**: Sube varias imágenes simultáneamente.
-- 🔍 **Extracción de Metadatos**: Obtiene automáticamente Latitud, Longitud, Altitud MSL y Altitud Relativa de DJI.
-- 🖼️ **Overlay Automático**: Genera un banner semitransparente con toda la información técnica.
-- 📥 **Gestión de Descargas**: 
-  - Selección individual y en lote (Seleccionar Todo/Nada).
-  - Descarga de imágenes seleccionadas.
-  - Previsualización en cuadrícula interactiva.
+- 📸 **Carga Inteligente**: Arrastra y suelta múltiples imágenes.
+- ✂️ **Curación Previa**: Lista de archivos con la opción de eliminar elementos individuales antes de procesar.
+- 🔍 **Extracción de Metadatos**: Obtiene automáticamente Latitud, Longitud, Altitud MSL y Altitud Relativa.
+- 🖼️ **Overlay Premium**: Banner con diseño limpio, tipografía moderna y transparencia.
+- ⚡ **Feedback en Tiempo Real**: Barra de progreso y cuadrícula de resultados instantánea.
+- 📥 **Exportación Flexible**: 
+  - Selección individual y masiva.
+  - Descarga de archivos individuales con su extensión correcta (.JPG).
+  - Descarga masiva en formato **ZIP**.
+- 🔒 **Privacidad y Seguridad**: 
+  - Sesiones aisladas por usuario.
+  - Limpieza automática de archivos temporales cada 30 minutos.
+  - Sincronización perfecta de miniaturas mediante cache-busting.
 
 ## Requisitos
 
-- Python 3.8 o superior
-- Reflex
+- Python 3.12 o superior
+- Reflex 0.8.28+
 - Pillow (PIL)
 
 ## Instalación
 
-1. Clona el repositorio o descarga los archivos.
-2. Instala las dependencias:
+1. Clona el repositorio.
+2. Crea un entorno virtual e instálalo:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
 ## Ejecución
 
-Para iniciar el servidor de desarrollo:
+Para iniciar la aplicación:
 
 ```bash
 reflex run
 ```
 
-La aplicación estará disponible por defecto en `http://localhost:3000`.
+La aplicación estará disponible en `http://localhost:3000`.
 
 ## Estructura del Proyecto
 
-- `overlay_reflex/overlay_reflex.py`: Interfaz de usuario (Frontend) y lógica de estado.
-- `overlay_reflex/overlay_logic.py`: Motor de procesamiento de imágenes y extracción de metadatos.
-- `assets/`: Carpeta para recursos estáticos e imágenes procesadas.
-- `rxconfig.py`: Configuración del proyecto Reflex.
+- `overlay_reflex/overlay_reflex.py`: Frontend de Reflex y gestión de estado.
+- `overlay_reflex/overlay_logic.py`: Extracción de metadatos XMP y motor de procesamiento de imágenes.
+- `assets/`: Recursos estáticos (favicon, estilos) y almacenamiento temporal de sesiones.
+- `rxconfig.py`: Configuración global del proyecto.
 
 ## Créditos
 

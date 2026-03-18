@@ -5,6 +5,7 @@ assets/processed/
 .states
 .web
 __pycache__/
-.venv/
+.venv
 .env
-.web/
+.web
+venv
