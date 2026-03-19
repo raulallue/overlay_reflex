@@ -51,9 +51,9 @@ def procesar_imagen_overlay(input_path, output_path, copyright_text="© RAS"):
             img = img.convert("RGBA")
             w, h = img.size
             
-            # Altura del banner (5% de la altura total)
-            banner_h = int(h * 0.05)
-            if banner_h < 30: banner_h = 30 # Mínimo razonable
+            # Altura del banner (6% de la altura total para un look más estilizado)
+            banner_h = int(h * 0.06)
+            if banner_h < 50: banner_h = 50 # Mínimo razonable
             
             # Crear overlay semitransparente
             overlay = Image.new('RGBA', (w, h), (0, 0, 0, 0))
@@ -64,14 +64,15 @@ def procesar_imagen_overlay(input_path, output_path, copyright_text="© RAS"):
             # Combinar
             img = Image.alpha_composite(img, overlay)
             
-            # Configurar fuente
-            font_size = int(banner_h * 0.40)
+            # Configurar fuente (usando el 85% de la altura del banner para máxima legibilidad)
+            font_size = int(banner_h * 0.3)
             try:
                 # Intentar cargar una fuente común en Mac/Linux/Windows
                 font_paths = [
-                    "/System/Library/Fonts/Supplemental/Arial Bold.ttf", # Mac
-                    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", # Linux
-                    "C:\\Windows\\Fonts\\arialbd.ttf" # Windows
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", # Linux (Docker)
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",      # Linux Fallback
+                    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",    # Mac
+                    "C:\\Windows\\Fonts\\arialbd.ttf"                       # Windows
                 ]
                 font = None
                 for p in font_paths:

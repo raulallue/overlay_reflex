@@ -1,0 +1,11 @@
+/* Force-hide the "Built with Reflex" watermark and any related elements */
+.reflex-watermark, 
+.reflex-badge,
+#__reflex-admin-dash,
+[class*="ReflexBadge"],
+[style*="Built with Reflex"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}

@@ -11,7 +11,7 @@ services:
       - "3002:3002"
       - "8002:8002"
     volumes:
-      - image-overlay-assets:/app/assets
+      - image-overlay-assets:/app/assets/processed
     environment:
       # Default value if not set in .env
       - API_URL=${API_URL:-http://localhost:8002}

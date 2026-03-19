@@ -61,26 +61,26 @@ docker-compose up --build -d
    - Frontend: `http://localhost:3002`
    - Backend API: `http://localhost:8002`
 
-> [!NOTE]
-> En entornos de producción, asegúrate de actualizar la variable `API_URL` en el archivo `docker-compose.yml` con la IP pública o dominio de tu servidor.
+> [!IMPORTANT]
+> En Portainer o en tu servidor de producción, **DEBES** configurar la variable de entorno `API_URL` con la IP pública de tu servidor (ej: `http://123.456.7.8:8002`). Si usas `localhost`, las previsualizaciones y descargas no funcionarán fuera del servidor.
 
-## Construir y Subir a Docker Hub
+## Construir y Subir a Docker Hub (Multi-Plataforma)
 
-Sigue estos pasos para empaquetar y subir tu imagen a Docker Hub:
+Para que tu imagen funcione en servidores de diferentes arquitecturas (AMD64/ARM64), utiliza `docker buildx`:
 
 1. **Iniciar sesión**:
    ```bash
    docker login
    ```
 
-2. **Construir la imagen**:
+2. **Cocrear e iniciar constructor**:
    ```bash
-   docker build -t <tu-usuario>/image-overlay:latest .
+   docker buildx create --use
    ```
 
-3. **Subir la imagen**:
+3. **Construir y Subir**:
    ```bash
-   docker push <tu-usuario>/image-overlay:latest
+   docker buildx build --platform linux/amd64,linux/arm64 -t <tu-usuario>/image-overlay:latest --push .
    ```
 
 ## Estructura del Proyecto

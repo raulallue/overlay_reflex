@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
     unzip \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Install NodeJS
@@ -35,10 +36,10 @@ RUN rm -rf .web
 # This creates the .web directory and installs frontend dependencies
 RUN reflex init
 
-# Create the processed directory and link it to the frontend's public folder
-# This allows the static frontend server to serve dynamic backend assets
-RUN mkdir -p assets/processed && \
-    ln -s /app/assets/processed /app/.web/public/processed
+# Link the assets directory to the frontend's public folder
+# This ensures both static and dynamic assets (favicon, processed images) 
+# are served correctly by the static frontend server at runtime.
+RUN rm -rf .web/public && ln -s /app/assets /app/.web/public
 
 # Expose the ports for the frontend (3002) and backend (8002)
 EXPOSE 3002 8002

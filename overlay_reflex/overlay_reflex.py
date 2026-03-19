@@ -9,6 +9,7 @@ from .overlay_logic import procesar_imagen_overlay
 
 import pydantic
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import FileResponse, JSONResponse
 
 class ProcessedImage(pydantic.BaseModel):
     name: str
@@ -46,6 +47,15 @@ class State(rx.State):
     # List of filenames to skip during upload
     files_to_remove: list[str] = []
 
+    def get_session_id(self) -> str:
+        """Get a stable session identifier for the current client."""
+        try:
+            # Standard way in Reflex 0.8.x
+            return self.router.session.client_token
+        except (AttributeError, Exception):
+            # Fallback for some versions or contexts
+            return self.get_token()
+
     async def handle_upload(self, files: list[rx.UploadFile]):
         """Handle the upload and processing of multiple images."""
         if not files:
@@ -63,10 +73,10 @@ class State(rx.State):
         yield
         
         # Ensure session-specific processed directory exists
-        session_id = self.router.session.client_token
+        session_id = self.get_session_id()
         session_processed_dir = os.path.join("assets", "processed", session_id)
         if not os.path.exists(session_processed_dir):
-            os.makedirs(session_processed_dir)
+            os.makedirs(session_processed_dir, exist_ok=True)
 
         self.processed_images = []
         
@@ -78,7 +88,6 @@ class State(rx.State):
         for file in valid_files:
             upload_data = await file.read()
             # Save uploaded file temporarily to process it
-            session_id = self.router.session.client_token
             temp_path = os.path.join("assets", f"{session_id}_{file.filename}")
             with open(temp_path, "wb") as f:
                 f.write(upload_data)
@@ -93,10 +102,19 @@ class State(rx.State):
             if success:
                 # Cache-busting timestamp
                 ts = int(time.time() * 1000)
+                # Ensure API_URL has a protocol and is correctly resolved from environment
+                api_url = os.environ.get("API_URL", config.api_url).rstrip("/")
+                if not api_url.startswith(("http://", "https://")):
+                    api_url = f"http://{api_url}"
+                
+                # If it's still localhost but we're in Docker, we warn
+                print(f"Processing for image {file.filename} using API_URL: {api_url}")
+                
                 self.processed_images.append(
                     ProcessedImage(
                         name=file.filename,
-                        url=f"/processed/{session_id}/{output_filename}?t={ts}",
+                        # Use absolute URL to reach the backend static mount directly
+                        url=f"{api_url}/processed/{session_id}/{output_filename}?t={ts}",
                         selected=True
                     )
                 )
@@ -147,7 +165,7 @@ class State(rx.State):
         self.files_to_remove = []
         self.progress = 0
         self.processed_count = 0
-        session_id = self.router.session.client_token
+        session_id = self.get_session_id()
         session_processed_dir = os.path.join("assets", "processed", session_id)
         if os.path.exists(session_processed_dir):
             shutil.rmtree(session_processed_dir)
@@ -155,39 +173,74 @@ class State(rx.State):
         return rx.clear_selected_files("upload_images")
 
     async def download_selected(self):
-        """Download all selected images one by one."""
-        for img in self.processed_images:
-            if getattr(img, "selected", False):
-                yield rx.download(url=img.url, filename=f"overlay_{img.name}")
+        """Download all selected images one by one using JavaScript to avoid browser navigation issues."""
+        urls = [img.url for img in self.processed_images if getattr(img, "selected", False)]
+        if not urls:
+            return
+        
+        # Trigger multiple downloads via client-side script
+        # We use a small delay between each to bypass some browser security limitations
+        urls_json = str(urls).replace("'", '"') # Simple JSON-safe list
+        script = f"""
+        const urls = {urls_json};
+        urls.forEach((url, i) => {{
+            setTimeout(() => {{
+                const link = document.body.appendChild(document.createElement('a'));
+                link.href = url;
+                link.setAttribute('download', '');
+                link.click();
+                document.body.removeChild(link);
+            }}, i * 800); // 800ms delay for stability
+        }});
+        """
+        return rx.call_script(script)
 
-    def download_zip(self):
-        """Compress selected images into a ZIP and download it."""
+    async def download_zip(self):
+        """Compress selected images into a ZIP and download it asynchronously."""
         selected_images = [img for img in self.processed_images if getattr(img, "selected", False)]
-        print(f"Zipping {len(selected_images)} images...")
         if not selected_images:
             return
         
+        # Update UI to show we are zipping
+        self.is_processing = True
+        self.progress = 0
+        yield
+
         # Ensure session-specific processed directory exists
-        session_id = self.router.session.client_token
-        processed_dir = os.path.join("assets", "processed")
-        session_processed_dir = os.path.join(processed_dir, session_id)
+        session_id = self.get_session_id()
+        session_processed_dir = os.path.join("assets", "processed", session_id)
         zip_filename = f"images_{session_id}.zip"
         zip_path = os.path.join(session_processed_dir, zip_filename)
         
-        with zipfile.ZipFile(zip_path, 'w') as zipf:
-            for img in selected_images:
-                # Strip query parameters (?t=...) from the URL to get the filename
-                clean_url = img.url.split('?')[0]
-                image_filename = os.path.basename(clean_url)
-                real_image_path = os.path.join(session_processed_dir, image_filename)
-                
-                print(f"Adding to zip: {real_image_path} (exists: {os.path.exists(real_image_path)})")
-                if os.path.exists(real_image_path):
-                    zipf.write(real_image_path, arcname=image_filename)
+        # Build image list
+        images_to_zip = []
+        for img in selected_images:
+            clean_url = img.url.split('?')[0]
+            image_filename = os.path.basename(clean_url)
+            real_image_path = os.path.join(session_processed_dir, image_filename)
+            if os.path.exists(real_image_path):
+                images_to_zip.append((real_image_path, image_filename))
+
+        # Perform zipping in a background thread to keep backend responsive
+        def create_zip():
+            with zipfile.ZipFile(zip_path, 'w') as zipf:
+                for path, name in images_to_zip:
+                    zipf.write(path, arcname=name)
         
-        # Add cache buster to zip download as well
-        ts = int(time.time() * 1000)
-        return rx.download(url=f"/processed/{session_id}/{zip_filename}?t={ts}")
+        import asyncio
+        await asyncio.to_thread(create_zip)
+        
+        self.progress = 100
+        self.is_processing = False
+        yield
+
+        # Ensure API_URL has a protocol
+        api_url = os.environ.get("API_URL", config.api_url)
+        if not api_url.startswith(("http://", "https://")):
+            api_url = f"http://{api_url}"
+
+        # Using redirect to the custom Starlette route which forces download
+        yield rx.redirect(f"{api_url}/processed/{session_id}/{zip_filename}")
 
 def index() -> rx.Component:
     return rx.box(
@@ -196,10 +249,28 @@ def index() -> rx.Component:
                 # Header Section
                 rx.vstack(
                     rx.heading("Image Overlay", size="9", weight="bold", color_scheme="blue", letter_spacing="-0.02em"),
-                    rx.text("Procesamiento por lotes de metadatos en imágenes", size="4", color_scheme="gray", opacity=0.8),
+                    rx.text("Procesamiento por lotes de metadatos en imágenes", size="4", color_scheme="gray", opacity=0.8, text_align="center"),
+                    rx.link(
+                        rx.hstack(
+                            rx.icon("monitor", size=16),
+                            rx.text("Software para windows", weight="medium"),
+                            spacing="2",
+                            align_items="center",
+                        ),
+                        href="/Overlay.zip",
+                        variant="soft",
+                        color_scheme="blue",
+                        size="1",
+                        margin_top="0.5em",
+                        padding_x="12px",
+                        padding_y="4px",
+                        border_radius="full",
+                    ),
                     spacing="2",
                     align_items="center",
+                    text_align="center",
                     padding_y="3em",
+                    width="100%",
                 ),
                 
                 # Main Tool Card
@@ -366,7 +437,7 @@ def index() -> rx.Component:
                                             rx.spacer(),
                                             rx.link(
                                                 rx.icon("download", size=14, color="blue"),
-                                                on_click=rx.download(url=img.url, filename=f"overlay_{img.name}"),
+                                                on_click=lambda url=img.url: rx.redirect(url),
                                                 cursor="pointer",
                                             ),
                                             width="100%",
@@ -393,6 +464,7 @@ def index() -> rx.Component:
                 width="100%",
                 padding_x="2em",
                 padding_bottom="5em",
+                align_items="center",
             ),
         ),
         min_height="100vh",
@@ -402,6 +474,7 @@ def index() -> rx.Component:
 app = rx.App(
     stylesheets=[
         "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+        "custom.css", # Local CSS for watermark removal and tweaks
     ],
     style={
         "font_family": "Inter, sans-serif",
@@ -411,6 +484,31 @@ app = rx.App(
 )
 app.add_page(index, title="Image Overlay", on_load=State.on_load)
 
-# Mount the assets/processed directory to serve files from the backend API
-# This is necessary for Docker deployment where the frontend is static
-app._api.mount("/processed", StaticFiles(directory=os.path.join("assets", "processed")), name="processed")
+# Custom Starlette route to serve processed files and force downloads
+# This replaces the static mount to provide correct Content-Disposition headers
+async def download_processed_file(request):
+    session_id = request.path_params.get("session_id")
+    filename = request.path_params.get("filename")
+    file_path = os.path.join("assets", "processed", session_id, filename)
+    if os.path.exists(file_path):
+        return FileResponse(
+            path=file_path,
+            filename=filename,
+            media_type='application/octet-stream'
+        )
+    return JSONResponse({"error": "File not found"}, status_code=404)
+
+app._api.add_route("/processed/{session_id}/{filename}", download_processed_file, methods=["GET"])
+
+# Custom Starlette route to serve the Windows software directly from assets
+async def download_software(request):
+    file_path = os.path.join("assets", "Overlay.zip")
+    if os.path.exists(file_path):
+        return FileResponse(
+            path=file_path,
+            filename="Overlay.zip",
+            media_type='application/octet-stream'
+        )
+    return JSONResponse({"error": "Software for Windows not found in assets/"}, status_code=404)
+
+app._api.add_route("/Overlay.zip", download_software, methods=["GET"])
