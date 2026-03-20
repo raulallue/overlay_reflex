@@ -467,7 +467,7 @@ def index() -> rx.Component:
                 
                 # Footer Section
                 rx.hstack(
-                    rx.text(f"© {datetime.now().year} Image Overlay. Todos los derechos reservados.", size="1", color_scheme="gray"),
+                    rx.text(f"© {datetime.now().year} RAS Image Overlay. Todos los derechos reservados.", size="1", color_scheme="gray"),
                     rx.spacer(),
                     rx.text("v1.0.0", size="1", color_scheme="gray"),
                     width="100%",
