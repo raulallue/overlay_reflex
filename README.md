@@ -1,96 +1,59 @@
-# Image Overlay
+# Image Overlay 🚀
 
-Una aplicación web moderna y profesional construida con **Reflex** para añadir overlays informativos a imágenes (optimizada para drones DJI). Extrae metadatos técnicos y los presenta de forma elegante en un banner integrado.
+**Image Overlay** es una herramienta web profesional diseñada para el procesamiento por lotes de imágenes, especializada en la superposición de metadatos (específicamente datos DJI como altura, coordenadas y fecha).
 
-![Interfaz Principal](file:///Users/raul/.gemini/antigravity/brain/ee598613-069b-4a9f-9a23-c3aff42c3d90/verify_buttons_alignment_1773862197803.png)
+![Favicon](assets/favicon.ico)
 
-## Características
+## ✨ Características
 
-- 📸 **Carga Inteligente**: Arrastra y suelta múltiples imágenes.
-- ✂️ **Curación Previa**: Lista de archivos con la opción de eliminar elementos individuales antes de procesar.
-- 🔍 **Extracción de Metadatos**: Obtiene automáticamente Latitud, Longitud, Altitud MSL y Altitud Relativa.
-- 🖼️ **Overlay Premium**: Banner con diseño limpio, tipografía moderna y transparencia.
-- ⚡ **Feedback en Tiempo Real**: Barra de progreso y cuadrícula de resultados instantánea.
-- 📥 **Exportación Flexible**: 
-  - Selección individual y masiva.
-  - Descarga de archivos individuales con su extensión correcta (.JPG).
-  - Descarga masiva en formato **ZIP**.
-- 🔒 **Privacidad y Seguridad**: 
-  - Sesiones aisladas por usuario.
-  - Limpieza automática de archivos temporales cada 30 minutos.
-  - Sincronización perfecta de miniaturas mediante cache-busting.
+- **Procesamiento Masivo**: Sube múltiples imágenes `.jpg` / `.jpeg` simultáneamente.
+- **Extracción de Metadatos**: Lee automáticamente la altitud, fecha y coordenadas de los metadatos EXIF de drones DJI.
+- **Superposición Elegante**: Añade un banner semitransparente con tipografía profesional (*DejaVu Sans Bold*).
+- **Gestión de Sesiones**: Aislamiento total de archivos por sesión de usuario.
+- **Descargas Flexibles**: 
+  - Descarga de imágenes individuales procesadas.
+  - Generación de archivos ZIP para descargas por lotes.
+  - Enlace directo a software de escritorio complementario (`Overlay.zip`).
+- **Arquitectura de Producción**: Totalmente preparada para Docker (multi-plataforma) y proxy Nginx con SSL.
 
-## Requisitos
+## 🛠️ Tecnologías
 
-- Python 3.12 o superior
-- Reflex 0.8.28+
-- Pillow (PIL)
+- **Reflex**: Framework web de alto rendimiento basado en Python y Next.js.
+- **Pillow (PIL)**: Motor de procesamiento de imágenes.
+- **FastAPI / Starlette**: Gestión de rutas personalizadas para descargas seguras.
+- **Docker**: Despliegue en contenedores optimizado.
+- **Nginx**: Proxy inverso para seguridad y SSL.
 
-## Instalación
+## 🚀 Despliegue Rápido (Docker)
 
-1. Clona el repositorio.
-2. Crea un entorno virtual e instálalo:
-
+### 1. Construir la Imagen (Multi-plataforma)
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+docker buildx build --platform linux/amd64,linux/arm64 -t rallue/image-overlay:latest --push .
 ```
 
-## Ejecución
+### 2. Configuración en Portainer / Docker Compose
+Asegúrate de configurar las siguientes variables de entorno:
+- `API_URL`: `https://tu-dominio.com` (IMPORTANTE: Sin barra final).
 
-Para iniciar la aplicación:
-
-```bash
-reflex run
+### 3. Proxy Nginx (Recomendado)
+Asegúrate de configurar Nginx para manejar WebSockets y aumentar el límite de subida:
+```nginx
+client_max_body_size 100M;
+location /_event {
+    proxy_pass http://ip-servidor:8002;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
 ```
 
-La aplicación estará disponible en `http://localhost:3000`.
+## 📂 Estructura del Proyecto
 
-## Despliegue con Docker (Producción)
+- `overlay_reflex/`: Carpeta principal de la aplicación.
+  - `overlay_reflex.py`: Lógica principal del estado y UI.
+  - `overlay_logic.py`: Motor de procesamiento de imágenes.
+- `assets/`: Archivos estáticos, iconos y software complementario.
+- `Dockerfile`: Configuración del contenedor de producción.
+- `rxconfig.py`: Configuración global de Reflex.
 
-Si deseas ejecutar la aplicación en un contenedor Docker, sigue estos pasos:
-
-1. **Construir y levantar**:
-
-```bash
-docker-compose up --build -d
-```
-
-2. **Acceso**:
-   - Frontend: `http://localhost:3002`
-   - Backend API: `http://localhost:8002`
-
-> [!IMPORTANT]
-> En Portainer o en tu servidor de producción, **DEBES** configurar la variable de entorno `API_URL` con la IP pública de tu servidor (ej: `http://123.456.7.8:8002`). Si usas `localhost`, las previsualizaciones y descargas no funcionarán fuera del servidor.
-
-## Construir y Subir a Docker Hub (Multi-Plataforma)
-
-Para que tu imagen funcione en servidores de diferentes arquitecturas (AMD64/ARM64), utiliza `docker buildx`:
-
-1. **Iniciar sesión**:
-   ```bash
-   docker login
-   ```
-
-2. **Cocrear e iniciar constructor**:
-   ```bash
-   docker buildx create --use
-   ```
-
-3. **Construir y Subir**:
-   ```bash
-   docker buildx build --platform linux/amd64,linux/arm64 -t <tu-usuario>/image-overlay:latest --push .
-   ```
-
-## Estructura del Proyecto
-
-- `overlay_reflex/overlay_reflex.py`: Frontend de Reflex y gestión de estado.
-- `overlay_reflex/overlay_logic.py`: Extracción de metadatos XMP y motor de procesamiento de imágenes.
-- `assets/`: Recursos estáticos (favicon, estilos) y almacenamiento temporal de sesiones.
-- `rxconfig.py`: Configuración global del proyecto.
-
-## Créditos
-
-Desarrollado por **Raúl Allué Sánchez**.
-© 2026 RAS
+## 📝 Licencia
+© 2026 Image Overlay. Todos los derechos reservados.

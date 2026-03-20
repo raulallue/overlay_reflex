@@ -1,8 +1,11 @@
 import reflex as rx
 import os
+import uuid
 import shutil
 import zipfile
 import io
+import asyncio
+from datetime import datetime
 import time # Moved import time to the top level
 from rxconfig import config
 from .overlay_logic import procesar_imagen_overlay
@@ -239,8 +242,8 @@ class State(rx.State):
         if not api_url.startswith(("http://", "https://")):
             api_url = f"http://{api_url}"
 
-        # Using redirect to the custom Starlette route which forces download
-        yield rx.redirect(f"{api_url}/processed/{session_id}/{zip_filename}")
+        # Using a hard redirect to bypass the Reflex router for direct downloads
+        yield rx.call_script(f"window.location.href = '{api_url}/processed/{session_id}/{zip_filename}'")
 
 def index() -> rx.Component:
     return rx.box(
@@ -258,6 +261,7 @@ def index() -> rx.Component:
                             align_items="center",
                         ),
                         href="/Overlay.zip",
+                        is_external=True,
                         variant="soft",
                         color_scheme="blue",
                         size="1",
@@ -281,7 +285,7 @@ def index() -> rx.Component:
                             rx.vstack(
                                 rx.icon("upload", size=30, color="blue"),
                                 rx.text("Arrastra las imágenes o haz clic", font_weight="500"),
-                                rx.text(".jpg, .jpeg (Metadatos DJI)", size="2", color_scheme="gray"),
+                                rx.text(".jpg, .jpeg", size="2", color_scheme="gray"),
                                 spacing="2",
                                 align_items="center",
                                 padding="3em",
@@ -437,7 +441,8 @@ def index() -> rx.Component:
                                             rx.spacer(),
                                             rx.link(
                                                 rx.icon("download", size=14, color="blue"),
-                                                on_click=lambda url=img.url: rx.redirect(url),
+                                                href=img.url,
+                                                is_external=True,
                                                 cursor="pointer",
                                             ),
                                             width="100%",
@@ -458,6 +463,17 @@ def index() -> rx.Component:
                     ),
                     # Empty state (Subtle)
                     rx.fragment()
+                ),
+                
+                # Footer Section
+                rx.hstack(
+                    rx.text(f"© {datetime.now().year} Image Overlay. Todos los derechos reservados.", size="1", color_scheme="gray"),
+                    rx.spacer(),
+                    rx.text("v1.0.0", size="1", color_scheme="gray"),
+                    width="100%",
+                    padding_y="2em",
+                    border_top="1px solid rgba(0,0,0,0.05)",
+                    margin_top="3em",
                 ),
                 
                 max_width="700px",
