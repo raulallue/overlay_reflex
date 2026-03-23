@@ -11,9 +11,12 @@ def obtener_metadatos_dji(path_or_bytes):
     try:
         if isinstance(path_or_bytes, str):
             with open(path_or_bytes, 'rb') as f:
-                contenido = f.read()
+                # Leer solo el primer megabyte (XMP está en la cabecera)
+                # Esto ahorra lectura de disco masiva en archivos de 30MB+
+                contenido = f.read(1024 * 1024)
         else:
-            contenido = path_or_bytes
+            # Si son bytes, tomamos solo el inicio por coherencia
+            contenido = path_or_bytes[:1024 * 1024]
 
         # Patrones para metadatos XMP de DJI
         patterns = {
@@ -48,31 +51,28 @@ def procesar_imagen_overlay(input_path, output_path, copyright_text="© RAS"):
             except:
                 pass
 
-            img = img.convert("RGBA")
+            # Mantener la imagen en RGB para ahorrar memoria (RGBA duplica el consumo)
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+            
             w, h = img.size
             
-            # Altura del banner (6% de la altura total para un look más estilizado)
+            # Altura del banner (6% de la altura total)
             banner_h = int(h * 0.06)
-            if banner_h < 50: banner_h = 50 # Mínimo razonable
+            if banner_h < 50: banner_h = 50
             
-            # Crear overlay semitransparente
-            overlay = Image.new('RGBA', (w, h), (0, 0, 0, 0))
-            draw_ov = ImageDraw.Draw(overlay)
-            # Dibujar rectángulo en el fondo
-            draw_ov.rectangle([0, h - banner_h, w, h], fill=(0, 0, 0, 170))
+            # Crear el banner SOLO para la parte inferior (ahorro radical de RAM)
+            banner = Image.new('RGBA', (w, banner_h), (0, 0, 0, 170))
+            draw_bn = ImageDraw.Draw(banner)
             
-            # Combinar
-            img = Image.alpha_composite(img, overlay)
-            
-            # Configurar fuente (usando el 85% de la altura del banner para máxima legibilidad)
+            # Configurar fuente
             font_size = int(banner_h * 0.3)
             try:
-                # Intentar cargar una fuente común en Mac/Linux/Windows
                 font_paths = [
-                    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", # Linux (Docker)
-                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",      # Linux Fallback
-                    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",    # Mac
-                    "C:\\Windows\\Fonts\\arialbd.ttf"                       # Windows
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+                    "C:\\Windows\\Fonts\\arialbd.ttf"
                 ]
                 font = None
                 for p in font_paths:
@@ -84,20 +84,23 @@ def procesar_imagen_overlay(input_path, output_path, copyright_text="© RAS"):
             except:
                 font = ImageFont.load_default()
 
-            draw = ImageDraw.Draw(img)
-            
-            # Calcular posición centrada
-            bbox = draw.textbbox((0, 0), texto, font=font)
+            # Calcular posición centrada en el banner
+            bbox = draw_bn.textbbox((0, 0), texto, font=font)
             text_w = bbox[2] - bbox[0]
             text_h = bbox[3] - bbox[1]
             
             tx = (w - text_w) // 2
-            ty = h - banner_h + (banner_h - text_h) // 2 - bbox[1]
+            ty = (banner_h - text_h) // 2 - bbox[1]
             
-            draw.text((tx, ty), texto, fill="white", font=font)
+            # Dibujar texto en el banner
+            draw_bn.text((tx, ty), texto, fill="white", font=font)
             
-            # Guardar como JPEG
-            img.convert("RGB").save(output_path, quality=90, optimize=True)
+            # Pegar el banner en la imagen original usando el propio banner como máscara para la transparencia
+            img.paste(banner, (0, h - banner_h), banner)
+            
+            # Guardar como JPEG eficiente
+            # Quitamos optimize=True porque en imágenes 4K/8K es extremadamente lento y causa timeouts
+            img.save(output_path, "JPEG", quality=90)
             return True
     except Exception as e:
         print(f"Error procesando imagen {input_path}: {e}")

@@ -4,6 +4,8 @@ FROM python:3.12-slim
 # Set environment variables
 ENV NODE_MAJOR=20
 ENV PYTHONUNBUFFERED=1
+# Increase gunicorn timeout for heavy image processing
+ENV GUNICORN_CMD_ARGS="--timeout 600"
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \

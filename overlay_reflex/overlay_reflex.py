@@ -28,6 +28,8 @@ class State(rx.State):
     total_files: int = 0
     processed_count: int = 0
     processed_images: list[ProcessedImage] = []
+    error_message: str = ""
+    MAX_IMAGES: int = 25
     
     @rx.var
     def has_selection(self) -> bool:
@@ -73,6 +75,13 @@ class State(rx.State):
         self.progress = 0
         self.processed_count = 0
         self.total_files = len(valid_files)
+        self.error_message = ""
+        
+        if self.total_files > self.MAX_IMAGES:
+            self.error_message = f"Límite excedido: máximo {self.MAX_IMAGES} imágenes por lote."
+            self.is_processing = False
+            return
+            
         yield
         
         # Ensure session-specific processed directory exists
@@ -99,8 +108,8 @@ class State(rx.State):
             output_filename = f"overlay_{file.filename}"
             output_path = os.path.join(session_processed_dir, output_filename)
             
-            # Process the image
-            success = procesar_imagen_overlay(temp_path, output_path)
+            # Process the image in a background thread to avoid blocking the event loop
+            success = await asyncio.to_thread(procesar_imagen_overlay, temp_path, output_path)
             
             if success:
                 # Cache-busting timestamp
@@ -166,6 +175,7 @@ class State(rx.State):
         """Clear all processed images and files for the current session."""
         self.processed_images = []
         self.files_to_remove = []
+        self.error_message = ""
         self.progress = 0
         self.processed_count = 0
         session_id = self.get_session_id()
@@ -285,7 +295,8 @@ def index() -> rx.Component:
                             rx.vstack(
                                 rx.icon("upload", size=30, color="blue"),
                                 rx.text("Arrastra las imágenes o haz clic", font_weight="500"),
-                                rx.text(".jpg, .jpeg", size="2", color_scheme="gray"),
+                                rx.text(f"Límite máximo: {State.MAX_IMAGES} imágenes", size="2", color_scheme="blue", weight="medium"),
+                                rx.text(".jpg, .jpeg", size="1", color_scheme="gray"),
                                 spacing="2",
                                 align_items="center",
                                 padding="3em",
@@ -319,6 +330,19 @@ def index() -> rx.Component:
                             spacing="3",
                             width="100%",
                             margin_top="1.5em",
+                        ),
+
+                        # Error Message
+                        rx.cond(
+                            State.error_message != "",
+                            rx.callout(
+                                State.error_message,
+                                icon="triangle_alert",
+                                color_scheme="red",
+                                role="alert",
+                                margin_top="1em",
+                                width="100%",
+                            )
                         ),
 
                         # Progress Indicator
@@ -528,3 +552,9 @@ async def download_software(request):
     return JSONResponse({"error": "Software for Windows not found in assets/"}, status_code=404)
 
 app._api.add_route("/Overlay.zip", download_software, methods=["GET"])
+
+# Add a ping endpoint for Docker healthchecks
+async def ping(request):
+    return JSONResponse({"status": "ok"})
+
+app._api.add_route("/ping", ping, methods=["GET"])
