@@ -29,7 +29,9 @@ class State(rx.State):
     processed_count: int = 0
     processed_images: list[ProcessedImage] = []
     error_message: str = ""
-    MAX_IMAGES: int = 25
+    uploading: bool = False
+    upload_progress: int = 0
+    MAX_IMAGES: int = 15
     
     @rx.var
     def has_selection(self) -> bool:
@@ -60,6 +62,27 @@ class State(rx.State):
         except (AttributeError, Exception):
             # Fallback for some versions or contexts
             return self.get_token()
+
+    def set_uploading(self, uploading: bool):
+        """Explicit setter for uploading state."""
+        self.uploading = uploading
+
+    def set_upload_progress(self, progress: int):
+        """Explicit setter for upload_progress state."""
+        self.upload_progress = progress
+
+    def remove_from_upload(self, name: str):
+        """Add a filename to the list of files to skip during upload."""
+        self.files_to_remove.append(name)
+
+    def handle_upload_progress(self, progress: dict):
+        """Handle upload progress updates from the frontend."""
+        # 'progress' is typically a dict in Reflex with progress information
+        # We extract the percentage if available or just use the value
+        if isinstance(progress, dict):
+            self.upload_progress = int(progress.get("progress", 0) * 100)
+        else:
+            self.upload_progress = int(progress * 100)
 
     async def handle_upload(self, files: list[rx.UploadFile]):
         """Handle the upload and processing of multiple images."""
@@ -140,6 +163,7 @@ class State(rx.State):
             yield
 
         self.is_processing = False
+        self.uploading = False
 
     def toggle_select(self, name: str):
         """Toggle the selection of a specific image."""
@@ -178,6 +202,7 @@ class State(rx.State):
         self.error_message = ""
         self.progress = 0
         self.processed_count = 0
+        rx.clear_selected_files("upload_images")
         session_id = self.get_session_id()
         session_processed_dir = os.path.join("assets", "processed", session_id)
         if os.path.exists(session_processed_dir):
@@ -313,8 +338,17 @@ def index() -> rx.Component:
                         rx.hstack(
                             rx.button(
                                 "Procesar",
-                                on_click=State.handle_upload(rx.upload_files(upload_id="upload_images")),
-                                loading=State.is_processing,
+                                on_click=[
+                                    State.set_uploading(True),        # Server-side state set 
+                                    State.handle_upload(
+                                        rx.upload_files(
+                                            upload_id="upload_images", 
+                                            on_upload_progress=State.handle_upload_progress
+                                        )
+                                    )
+                                ],
+                                loading=State.is_processing | State.uploading,
+                                disabled=(rx.selected_files("upload_images").length() - State.files_to_remove.length() > 15),
                                 color_scheme="blue",
                                 flex="1",
                                 size="3",
@@ -345,14 +379,57 @@ def index() -> rx.Component:
                             )
                         ),
 
-                        # Progress Indicator
+                        # Frontend Error (Too many files selected)
                         rx.cond(
-                            State.is_processing,
-                            rx.vstack(
-                                rx.progress(value=State.progress, width="100%", size="1", color_scheme="blue"),
-                                rx.text(f"Completado {State.progress}%", size="1", color_scheme="gray"),
+                            rx.selected_files("upload_images").length() - State.files_to_remove.length() > 15,
+                            rx.callout(
+                                "No se pueden procesar más de 15 fotos a la vez. Por favor, elimina algunas.",
+                                icon="circle_alert",
+                                color_scheme="red",
+                                margin_top="1em",
                                 width="100%",
-                                spacing="1",
+                            )
+                        ),
+
+                        # Upload Progress (State-based)
+                        rx.cond(
+                            State.uploading,
+                            rx.vstack(
+                                rx.text(
+                                    rx.hstack(
+                                        rx.spinner(size="1"),
+                                        rx.text(f"Subiendo archivos al servidor... {State.upload_progress}%", size="1"),
+                                        spacing="2",
+                                        align_items="center",
+                                    ),
+                                    color_scheme="blue",
+                                    weight="medium",
+                                ),
+                                rx.progress(value=State.upload_progress, width="100%", size="1", color_scheme="blue"),
+                                width="100%",
+                                spacing="2",
+                                padding_top="1em",
+                            )
+                        ),
+
+                        # Processing Progress (Server-side yields)
+                        rx.cond(
+                            State.is_processing & ~State.uploading,
+                            rx.vstack(
+                                rx.text(
+                                    rx.hstack(
+                                        rx.spinner(size="1"),
+                                        rx.text(f"Procesando imágenes... {State.progress}%", size="1"),
+                                        spacing="2",
+                                        align_items="center",
+                                    ),
+                                    color_scheme="blue",
+                                    weight="medium",
+                                ),
+                                rx.progress(value=State.progress, width="100%", size="1", color_scheme="blue"),
+                                rx.text(f"Completado {State.processed_count} de {State.total_files}", size="1", color_scheme="gray"),
+                                width="100%",
+                                spacing="2",
                                 padding_top="1em",
                             )
                         ),
@@ -395,8 +472,7 @@ def index() -> rx.Component:
                                         radius="full",
                                         padding_x="10px",
                                     ),
-                                    rx.fragment()
-                                )
+                                ),
                             ),
                             spacing="2",
                             flex_wrap="wrap",
